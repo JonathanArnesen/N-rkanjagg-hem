@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>När kan jag gå hem?</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+            display: inline-block;
+            width: 100%;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #e0e0e0;
+        }
+        #result, #flexResult {
+            font-size: 1.2em;
+            color: #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>När kan jag gå hem?</h1>
+    <form onsubmit="calculateTimes(); return false;">
+        <div class="input-group">
+            <label for="expectedTime">Förväntad arbetstid:</label>
+            <input type="text" id="expectedTime" placeholder="HHMM-HHMM">
+        </div>
+        <div class="input-group">
+            <label for="checkIn">Stämpla in:</label>
+            <input type="text" id="checkIn" placeholder="HHMM">
+        </div>
+        <div class="input-group">
+            <label for="flexPeriods">Önskad flex i perioder:</label>
+            <input type="text" id="flexPeriods" placeholder="Perioder">
+        </div>
+        <button type="submit">Beräkna</button>
+    </form>
+    <div id="result"></div>
+    <div id="flexResult"></div>
+    <script>
+        function calculateTimes() {
+            const checkInTime = document.getElementById('checkIn').value;
+            const flexPeriodsInput = document.getElementById('flexPeriods').value;
+            const expectedTime = document.getElementById('expectedTime').value;
+
+            if (!checkInTime) {
+                document.getElementById('result').innerHTML = "Vänligen ange en instämplingstid";
+                document.getElementById('flexResult').innerHTML = "";
+                return;
+            }
+
+            if (checkInTime.length !== 4 || isNaN(checkInTime)) {
+                document.getElementById('result').innerHTML = "Ogiltig instämplingstid, använd formatet HHMM (t.ex. 0632)";
+                document.getElementById('flexResult').innerHTML = "";
+                return;
+            }
+
+            const inHours = parseInt(checkInTime.slice(0, 2));
+            const inMinutes = parseInt(checkInTime.slice(2, 4));
+            if (inHours < 0 || inHours > 23 || inMinutes < 0 || inMinutes > 59) {
+                document.getElementById('result').innerHTML = "Ogiltig tid, timmar 00-23 och minuter 00-59";
+                document.getElementById('flexResult').innerHTML = "";
+                return;
+            }
+
+            let expectedStartHours, expectedStartMinutes, adjustedStartTime;
+            if (expectedTime) {
+                const timeMatch = expectedTime.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})$/);
+                if (!timeMatch) {
+                    document.getElementById('result').innerHTML = "Ogiltig förväntad tid, använd formatet HHMM-HHMM (t.ex. 0730-1612)";
+                    document.getElementById('flexResult').innerHTML = "";
+                    return;
+                }
+
+                expectedStartHours = parseInt(timeMatch[1]);
+                expectedStartMinutes = parseInt(timeMatch[2]);
+                const expectedEndHours = parseInt(timeMatch[3]);
+                const expectedEndMinutes = parseInt(timeMatch[4]);
+
+                if (expectedStartHours > 23 || expectedEndHours > 23 || 
+                    expectedStartMinutes > 59 || expectedEndMinutes > 59) {
+                    document.getElementById('result').innerHTML = "Ogiltig tid i förväntad arbetstid, använd HHMM-HHMM";
+                    document.getElementById('flexResult').innerHTML = "";
+                    return;
+                }
+
+                const flexStartMinutes = expectedStartHours * 60 + expectedStartMinutes - 60;
+                const flexEndMinutes = expectedStartHours * 60 + expectedStartMinutes + 60;
+                const checkInMinutes = inHours * 60 + inMinutes;
+
+                if (checkInMinutes < flexStartMinutes) {
+                    adjustedStartTime = new Date();
+                    adjustedStartTime.setHours(Math.floor(flexStartMinutes / 60), flexStartMinutes % 60, 0, 0);
+                } else if (checkInMinutes > flexEndMinutes) {
+                    adjustedStartTime = new Date();
+                    adjustedStartTime.setHours(Math.floor(flexEndMinutes / 60), flexEndMinutes % 60, 0, 0);
+                } else {
+                    adjustedStartTime = new Date();
+                    adjustedStartTime.setHours(inHours, inMinutes, 0, 0);
+                }
+            } else {
+                adjustedStartTime = new Date();
+                adjustedStartTime.setHours(inHours, inMinutes, 0, 0);
+            }
+
+            const baseMinutes = 522;
+            let totalMinutes = adjustedStartTime.getHours() * 60 + adjustedStartTime.getMinutes() + baseMinutes;
+            let baseHours = Math.floor(totalMinutes / 60) % 24;
+            let baseMinutesRemainder = totalMinutes % 60;
+            const baseRoundedMinutes = Math.ceil(baseMinutesRemainder / 6) * 6;
+            if (baseRoundedMinutes >= 60) {
+                baseHours = (baseHours + 1) % 24;
+                baseMinutesRemainder = baseRoundedMinutes - 60;
+            } else {
+                baseMinutesRemainder = baseRoundedMinutes;
+            }
+            const baseGoHomeTime = `${String(baseHours).padStart(2, '0')}:${String(baseMinutesRemainder).padStart(2, '0')}`;
+            document.getElementById('result').innerHTML = `Du kan gå hem kl ${baseGoHomeTime}`;
+
+            if (flexPeriodsInput) {
+                const flexPeriods = parseFloat(flexPeriodsInput);
+                if (isNaN(flexPeriods)) {
+                    document.getElementById('flexResult').innerHTML = "Ogiltigt flexvärde, använd t.ex. 0.3";
+                    return;
+                }
+
+                const extraMinutes = flexPeriods * 6;
+                const flexTotalMinutes = totalMinutes + extraMinutes;
+                let flexHours = Math.floor(flexTotalMinutes / 60) % 24;
+                let flexMinutes = flexTotalMinutes % 60;
+                const flexRoundedMinutes = Math.ceil(flexMinutes / 6) * 6;
+                if (flexRoundedMinutes >= 60) {
+                    flexHours = (flexHours + 1) % 24;
+                    flexMinutes = flexRoundedMinutes - 60;
+                } else {
+                    flexMinutes = flexRoundedMinutes;
+                }
+
+                const flexGoHomeTime = `${String(flexHours).padStart(2, '0')}:${String(flexMinutes).padStart(2, '0')}`;
+                document.getElementById('flexResult').innerHTML = 
+                    `För att gå +${flexPeriods} perioder ska du stanna till ${flexGoHomeTime}`;
+            } else {
+                document.getElementById('flexResult').innerHTML = "";
+            }
+        }
+    </script>
+</body>
+</html>
